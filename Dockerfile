@@ -1,13 +1,17 @@
 # https://hub.docker.com/r/jenkins/jenkins/tags/
-FROM jenkins/jenkins:2.90-alpine
+FROM jenkins/jenkins:2.92-alpine
 
 USER root
 
 RUN apk update && apk upgrade && \
-    apk add --no-cache bash git openssh gettext make docker
+    apk add --no-cache bash git openssh gettext make docker tree
 
 # Allow the jenkins user to run docker
 RUN adduser jenkins docker
+
+ADD rootfs / 
+RUN chown -R jenkins:jenkins /init.sh && \
+      chmod +x ./init.sh
 
 # Drop back to the regular jenkins user
 USER jenkins
@@ -20,8 +24,10 @@ USER jenkins
 # https://stackoverflow.com/questions/29579589/whats-the-recommended-way-to-set-networkaddress-cache-ttl-in-elastic-beanstalk
 ENV JAVA_OPTS="-Djenkins.install.runSetupWizard=false -Dhudson.DNSMultiCast.disabled=true -Djava.awt.headless=true -Dsun.net.inetaddr.ttl=60 -Duser.timezone=PST -Dorg.jenkinsci.plugins.gitclient.Git.timeOut=60"
 
+ENV JENKINS_UC="https://updates.jenkins.io"
+
 # Preinstall plugins
-COPY plugins.txt /usr/share/jenkins/ref/plugins.txt
+COPY plugins.txt /usr/share/jenkins/ref/
 RUN /usr/local/bin/install-plugins.sh < /usr/share/jenkins/ref/plugins.txt
 
 # Setup Jenkins initial admin user, security mode (Matrix), and the number of job executors
@@ -32,3 +38,5 @@ COPY init.groovy /usr/share/jenkins/ref/init.groovy.d/
 COPY init-ec2.groovy /usr/share/jenkins/ref/init.groovy.d/
 
 EXPOSE 8080
+
+ENTRYPOINT ["/bin/tini", "--", "/init.sh"]
